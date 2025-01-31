@@ -7,14 +7,23 @@ func getGitlab(token string, url string) *gitlab.Client {
 	if err != nil {
 		handleError(err)
 	}
-    return git
+	return git
 }
 
-func listProjects(git *gitlab.Client) []*gitlab.Project{
-    opt:= &gitlab.ListProjectsOptions{Search: gitlab.Ptr("glab")}
-    projects, _, err := git.Projects.ListProjects(opt)
+func listProjects() []*gitlab.Project {
+	opt := &gitlab.ListProjectsOptions{}
+	projects, _, err := git.Projects.ListProjects(opt)
 	if err != nil {
 		handleError(err)
 	}
-    return projects
+	return projects
+}
+
+func listProjectIssues(project *gitlab.Project) []*gitlab.Issue {
+	opt := &gitlab.ListProjectIssuesOptions{}
+	issues, _, err := git.Issues.ListProjectIssues(project.ID, opt)
+	if err != nil {
+		handleError(err)
+	}
+	return issues
 }

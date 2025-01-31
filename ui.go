@@ -1,31 +1,43 @@
 package main
 
-import "github.com/rivo/tview"
+import (
+	"github.com/rivo/tview"
+	gitlab "gitlab.com/gitlab-org/api/client-go"
+)
 
+func grid(menu *tview.List, main *tview.TextView) *tview.Flex {
 
-func grid(app *tview.Application) *tview.Flex {
+	menu.SetChangedFunc(handleListSelect)
 
-	newPrimitive := func(text string) tview.Primitive {
-		return tview.NewBox().
-			SetTitle(text).
-			SetBorder(true)
+	menu.SetTitle("Projects").SetBorder(true)
 
-	}
-
-	menu := newPrimitive("Menu")
-	main := newPrimitive("Main Content")
-
-	grid := tview.NewFlex().
+	mainUI := tview.NewFlex().
 		// SetRows(3, 0, 3).
 		// SetColumns(30, 0, 30).
 		// SetBorders(true).
 		AddItem(menu, 45, 1, true).
 		AddItem(main, 0, 3, false)
 
-	return grid
+	return mainUI
 }
 
-func help(app *tview.Application) *tview.List {
+func handleListSelect(index int, mainText string, secondaryText string, shortcut rune) {
+	issues := listProjectIssues(projects[index])
+    var text string = ""
+    for _, issue := range issues {
+        text += "# " + issue.Title + "\n"
+    }
+    textView.SetText(text)
+}
+
+func createPrimitive(text string) *tview.TextView {
+	textView := tview.NewTextView().SetDynamicColors(true).SetRegions(true).SetChangedFunc(func() { app.Draw() })
+	textView.SetText(text)
+	textView.SetBorder(true)
+	return textView
+}
+
+func help() *tview.List {
 	list := tview.NewList().
 		AddItem("Quit", "Press to exit", 'q', func() {
 			app.Stop()
@@ -34,5 +46,20 @@ func help(app *tview.Application) *tview.List {
 		}).
 		AddItem("List item 3", "Explain", 'k', func() {
 		})
+	return list
+}
+
+func showProjects(projects []*gitlab.Project) *tview.List {
+	list := tview.NewList().
+		ShowSecondaryText(false)
+
+	for _, project := range projects {
+		list.AddItem(project.Name, string(project.ID), 'a', nil)
+	}
+	// AddItem("Quit", "Press to exit", 'q', func() {
+	// 	app.Stop()
+	// }).
+	// AddItem("List item 3", "Explain", 'k', func() {
+	// })
 	return list
 }

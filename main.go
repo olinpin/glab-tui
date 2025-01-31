@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/rivo/tview"
+	gitlab "gitlab.com/gitlab-org/api/client-go"
 	// "gitlab.com/gitlab-org/api/client-go"
 )
 
@@ -13,15 +14,23 @@ type Issue struct {
 	text string
 }
 
+var app *tview.Application
+var mainUI *tview.Flex
+var projects []*gitlab.Project
+var git *gitlab.Client
+var textView *tview.TextView
+
 func main() {
-	git := getGitlab(os.Getenv("GITLAB_TOKEN"), "https://gitlab.utwente.nl")
-    projects := listProjects(git)
-    fmt.Println(projects)
-    // var project string = "s2969912/glabtest"
-	app := tview.NewApplication()
-	helpList := grid(app)
-	if err := app.SetRoot(helpList, true).SetFocus(helpList).Run(); err != nil {
-		panic(err)
+	git = getGitlab(os.Getenv("GITLAB_TOKEN"), "https://gitlab.utwente.nl")
+	projects = listProjects()
+
+	// var project string = "s2969912/glabtest"
+	app = tview.NewApplication()
+	projectsUI := showProjects(projects)
+    textView = createPrimitive("")
+	mainUI = grid(projectsUI, textView)
+	if err := app.SetRoot(mainUI, true).SetFocus(mainUI).Run(); err != nil {
+		fmt.Println(err)
+        app.Stop()
 	}
 }
-
