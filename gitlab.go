@@ -16,6 +16,10 @@ func listProjects() []*gitlab.Project {
 	if err != nil {
 		handleError(err)
 	}
+
+	sort.Slice(projects, func(i, j int) bool {
+		return strings.ToLower(projects[i].Name) < strings.ToLower(projects[j].Name)
+	})
 	return projects
 }
 
