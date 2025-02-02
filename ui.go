@@ -23,11 +23,11 @@ func grid(menu *tview.List, main *tview.TextView) *tview.Flex {
 
 func handleListSelect(index int, mainText string, secondaryText string, shortcut rune) {
 	issues := listProjectIssues(projects[index])
-    var text string = ""
-    for _, issue := range issues {
-        text += "# " + issue.Title + "\n"
-    }
-    textView.SetText(text)
+	var text string = ""
+	for _, issue := range issues {
+		text += "# " + issue.Title + "\n"
+	}
+	textView.SetText(text)
 }
 
 func createPrimitive(text string) *tview.TextView {
@@ -63,3 +63,10 @@ func showProjects(projects []*gitlab.Project) *tview.List {
 	// })
 	return list
 }
+
+func createProjectsView(projects []*gitlab.Project) *tview.Flex {
+	projectsUI := showProjects(projects)
+	textView = createPrimitive("")
+	return grid(projectsUI, textView)
+}
+

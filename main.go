@@ -19,7 +19,7 @@ type TimedCached struct {
 }
 
 var app *tview.Application
-var mainUI *tview.Flex
+var projectsView *tview.Flex
 var projects []*gitlab.Project
 var git *gitlab.Client
 var textView *tview.TextView
@@ -32,10 +32,10 @@ func main() {
 
 	// var project string = "s2969912/glabtest"
 	app = tview.NewApplication()
-	projectsUI := showProjects(projects)
-	textView = createPrimitive("")
-	mainUI = grid(projectsUI, textView)
-	if err := app.SetRoot(mainUI, true).SetFocus(mainUI).Run(); err != nil {
+	pages := tview.NewPages()
+	projectsView = createProjectsView(projects)
+	pages.AddPage("projects", projectsView, true, true)
+	if err := app.SetRoot(pages, true).SetFocus(pages).Run(); err != nil {
 		fmt.Println(err)
 		app.Stop()
 	}
