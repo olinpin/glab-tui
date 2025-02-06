@@ -1,20 +1,18 @@
 package main
 
 import (
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
-func grid(menu *tview.List, main *tview.TextView) *tview.Flex {
-
+func projectsGrid(menu *tview.List, main *tview.TextView) *tview.Flex {
 	menu.SetChangedFunc(handleListSelect)
 
 	menu.SetTitle("Projects").SetBorder(true)
+	main.SetTitle("Issues").SetBorder(true)
 
 	mainUI := tview.NewFlex().
-		// SetRows(3, 0, 3).
-		// SetColumns(30, 0, 30).
-		// SetBorders(true).
 		AddItem(menu, 45, 1, true).
 		AddItem(main, 0, 3, false)
 
@@ -54,19 +52,65 @@ func showProjects(projects []*gitlab.Project) *tview.List {
 		ShowSecondaryText(false)
 
 	for _, project := range projects {
-		list.AddItem(project.Name, string(project.ID), 'a', nil)
+		list.AddItem(project.Name, string(project.ID), rune(0), func() {
+			pages.SwitchToPage("issues" + project.Name)
+		})
 	}
-	// AddItem("Quit", "Press to exit", 'q', func() {
-	// 	app.Stop()
-	// }).
-	// AddItem("List item 3", "Explain", 'k', func() {
-	// })
+	list.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		k := event.Rune()
+		currentItem := list.GetCurrentItem()
+		switch k {
+		case 'j':
+			if currentItem < list.GetItemCount() {
+				list.SetCurrentItem(currentItem + 1)
+			}
+		case 'k':
+			if currentItem > 0 {
+				list.SetCurrentItem(currentItem + -1)
+			}
+		case 'g':
+			list.SetCurrentItem(0)
+		case 'G':
+			list.SetCurrentItem(list.GetItemCount() - 1)
+		}
+		return event
+	})
+	return list
+}
+
+func showAllIssues(issues []*gitlab.Issue) *tview.List {
+	list := tview.NewList().
+		ShowSecondaryText(false)
+
+	for _, issue := range issues {
+		list.AddItem(issue.Title, string(issue.ID), 0, nil)
+
+	}
+
 	return list
 }
 
 func createProjectsView(projects []*gitlab.Project) *tview.Flex {
 	projectsUI := showProjects(projects)
 	textView = createPrimitive("")
-	return grid(projectsUI, textView)
+	return projectsGrid(projectsUI, textView)
 }
 
+func createIssueView(issues []*gitlab.Issue) *tview.Flex {
+	issueView := showAllIssues(issues)
+	textView = createPrimitive("")
+	return IssueGrid(issueView, textView)
+}
+
+func IssueGrid(menu *tview.List, main *tview.TextView) *tview.Flex {
+	menu.SetChangedFunc(handleListSelect)
+
+	menu.SetTitle("Issues").SetBorder(true)
+	main.SetTitle("Issue #").SetBorder(true)
+
+	mainUI := tview.NewFlex().
+		AddItem(menu, 45, 1, true).
+		AddItem(main, 0, 3, false)
+
+	return mainUI
+}
