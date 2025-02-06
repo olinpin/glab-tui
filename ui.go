@@ -6,15 +6,18 @@ import (
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
-func projectsGrid(menu *tview.List, main *tview.TextView) *tview.Flex {
+func projectsGrid(menu *tview.List) *tview.Flex {
 	menu.SetChangedFunc(handleListSelect)
 
 	menu.SetTitle("Projects").SetBorder(true)
-	main.SetTitle("Issues").SetBorder(true)
+	if projectsTextView == nil {
+		projectsTextView = createPrimitive("")
+	}
+	projectsTextView.SetTitle("Issues").SetBorder(true)
 
 	mainUI := tview.NewFlex().
 		AddItem(menu, 45, 1, true).
-		AddItem(main, 0, 3, false)
+		AddItem(projectsTextView, 0, 3, false)
 
 	return mainUI
 }
@@ -25,7 +28,7 @@ func handleListSelect(index int, mainText string, secondaryText string, shortcut
 	for _, issue := range issues {
 		text += "# " + issue.Title + "\n"
 	}
-	textView.SetText(text)
+	projectsTextView.SetText(text)
 }
 
 func createPrimitive(text string) *tview.TextView {
@@ -72,7 +75,6 @@ func showAllIssues(issues []*gitlab.Issue) *tview.List {
 
 	for _, issue := range issues {
 		list.AddItem(issue.Title, string(issue.ID), 0, nil)
-
 	}
 
 	return list
@@ -80,13 +82,12 @@ func showAllIssues(issues []*gitlab.Issue) *tview.List {
 
 func createProjectsView(projects []*gitlab.Project) *tview.Flex {
 	projectsUI := showProjects(projects)
-	textView = createPrimitive("")
-	return projectsGrid(projectsUI, textView)
+	return projectsGrid(projectsUI)
 }
 
 func createIssueView(issues []*gitlab.Issue) *tview.Flex {
 	issueView := showAllIssues(issues)
-	textView = createPrimitive("")
+	textView := createPrimitive("")
 	return IssueGrid(issueView, textView)
 }
 

@@ -23,7 +23,7 @@ var app *tview.Application
 var projectsView *tview.Flex
 var projects []*gitlab.Project
 var git *gitlab.Client
-var textView *tview.TextView
+var projectsTextView *tview.TextView
 var cache map[string]TimedCached
 var pages *tview.Pages
 
