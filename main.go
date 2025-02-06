@@ -27,6 +27,8 @@ var projectsTextView *tview.TextView
 var cache map[string]TimedCached
 var pages *tview.Pages
 
+// TODO: loading is taking way too long, first open the app and then populate the projects list and then download the issues on select
+
 func main() {
 	git = getGitlab(os.Getenv("GITLAB_TOKEN"), "https://gitlab.utwente.nl")
 	projects = listProjects()
