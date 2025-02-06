@@ -46,3 +46,10 @@ func listProjectIssues(project *gitlab.Project) []*gitlab.Issue {
 	cache[key] = TimedCached{timestamp, issues}
 	return issues
 }
+
+func getIssueDetails(issue *gitlab.Issue) string {
+	result := ""
+	title := issue.Title
+	result += "# " + title
+	return result
+}

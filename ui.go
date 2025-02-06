@@ -7,7 +7,7 @@ import (
 )
 
 func projectsGrid(menu *tview.List) *tview.Flex {
-	menu.SetChangedFunc(handleListSelect)
+	menu.SetChangedFunc(handleProjectSelect)
 
 	menu.SetTitle("Projects").SetBorder(true)
 	if projectsTextView == nil {
@@ -22,8 +22,9 @@ func projectsGrid(menu *tview.List) *tview.Flex {
 	return mainUI
 }
 
-func handleListSelect(index int, mainText string, secondaryText string, shortcut rune) {
-	issues := listProjectIssues(projects[index])
+func handleProjectSelect(index int, mainText string, secondaryText string, shortcut rune) {
+	currentProject = projects[index]
+	issues := listProjectIssues(currentProject)
 	var text string = ""
 	for _, issue := range issues {
 		text += "# " + issue.Title + "\n"
@@ -105,14 +106,21 @@ func createProjectsView(projects []*gitlab.Project) *tview.Flex {
 	return projectsGrid(projectsUI)
 }
 
-func createIssueView(issues []*gitlab.Issue) *tview.Flex {
+func createIssueView(issues []*gitlab.Issue) (*tview.Flex, *tview.TextView) {
 	issueView := showAllIssues(issues)
 	textView := createPrimitive("")
-	return IssueGrid(issueView, textView)
+	return IssueGrid(issueView, textView), textView
+}
+
+func handleIssueSelect(index int, mainText string, secondaryText string, shortcut rune) {
+	issues := projectIssues[currentProject]
+	issueText := getIssueDetails(issues[index])
+	textView, _ := issueViews[currentProject]
+	textView.SetText(issueText)
 }
 
 func IssueGrid(menu *tview.List, main *tview.TextView) *tview.Flex {
-	menu.SetChangedFunc(handleListSelect)
+	menu.SetChangedFunc(handleIssueSelect)
 
 	menu.SetTitle("Issues").SetBorder(true)
 	main.SetTitle("Issue #").SetBorder(true)
