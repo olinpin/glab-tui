@@ -76,6 +76,26 @@ func showAllIssues(issues []*gitlab.Issue) *tview.List {
 	for _, issue := range issues {
 		list.AddItem(issue.Title, string(issue.ID), 0, nil)
 	}
+	// TODO: This is repetative copy paste code, figure out how to generalize it
+	list.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		k := event.Rune()
+		currentItem := list.GetCurrentItem()
+		switch k {
+		case 'j':
+			if currentItem < list.GetItemCount() {
+				list.SetCurrentItem(currentItem + 1)
+			}
+		case 'k':
+			if currentItem > 0 {
+				list.SetCurrentItem(currentItem + -1)
+			}
+		case 'g':
+			list.SetCurrentItem(0)
+		case 'G':
+			list.SetCurrentItem(list.GetItemCount() - 1)
+		}
+		return event
+	})
 
 	return list
 }
