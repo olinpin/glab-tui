@@ -35,18 +35,6 @@ func createPrimitive(text string) *tview.TextView {
 	return textView
 }
 
-func help() *tview.List {
-	list := tview.NewList().
-		AddItem("Quit", "Press to exit", 'q', func() {
-			app.Stop()
-		}).
-		AddItem("List item 2", "Explain", 'j', func() {
-		}).
-		AddItem("List item 3", "Explain", 'k', func() {
-		})
-	return list
-}
-
 func showProjects(projects []*gitlab.Project) *tview.List {
 	list := tview.NewList().
 		ShowSecondaryText(false)
