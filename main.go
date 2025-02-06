@@ -31,6 +31,8 @@ var issueViews map[*gitlab.Project]*tview.TextView
 
 // TODO: loading is taking way too long, first open the app and then populate the projects list and then download the issues on select
 
+// TODO: make sure that the textview loads for the first project/issue that's selected when view opens
+
 func main() {
 	git = getGitlab(os.Getenv("GITLAB_TOKEN"), "https://gitlab.utwente.nl")
 	projects = listProjects()

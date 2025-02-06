@@ -50,6 +50,8 @@ func listProjectIssues(project *gitlab.Project) []*gitlab.Issue {
 func getIssueDetails(issue *gitlab.Issue) string {
 	result := ""
 	title := issue.Title
-	result += "# " + title
+	result += "# " + title + "\n\n"
+	description := issue.Description
+	result += description + "\n\n"
 	return result
 }
