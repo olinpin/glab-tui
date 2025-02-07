@@ -55,6 +55,8 @@ func main() {
 		k := event.Key()
 		if k == tcell.KeyEsc {
 			pages.SwitchToPage("projects")
+		} else if event.Rune() == 'q' {
+			app.Stop()
 		}
 		return event
 	})
