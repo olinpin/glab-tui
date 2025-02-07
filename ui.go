@@ -10,9 +10,6 @@ func projectsGrid(menu *tview.List) *tview.Flex {
 	menu.SetChangedFunc(handleProjectSelect)
 
 	menu.SetTitle("Projects").SetBorder(true)
-	if projectsTextView == nil {
-		projectsTextView = createPrimitive("")
-	}
 	projectsTextView.SetTitle("Issues").SetBorder(true)
 
 	mainUI := tview.NewFlex().
@@ -103,12 +100,20 @@ func showAllIssues(issues []*gitlab.Issue) *tview.List {
 
 func createProjectsView(projects []*gitlab.Project) *tview.Flex {
 	projectsUI := showProjects(projects)
+	if projectsTextView == nil {
+		projectsTextView = createPrimitive("")
+	}
+	handleProjectSelect(0, "", "", 'a')
 	return projectsGrid(projectsUI)
 }
 
 func createIssueView(issues []*gitlab.Issue) (*tview.Flex, *tview.TextView) {
 	issueView := showAllIssues(issues)
 	textView := createPrimitive("")
+	if len(issues) > 0 {
+		issueText := getIssueDetails(issues[0])
+		textView.SetText(issueText)
+	}
 	return IssueGrid(issueView, textView), textView
 }
 
