@@ -50,7 +50,7 @@ func createApp() *App {
 	a.tviewApp = tview.NewApplication()
 	a.pages = tview.NewPages()
 	a.projects = []*gitlab.Project{}
-	a.projectsTextView = createPrimitive("")
+	a.projectsTextView = a.createPrimitive("")
 	a.projectSearchField = tview.NewInputField()
 	return &a
 }
@@ -59,7 +59,7 @@ func (a *App) getProjectsAndIssuesRoutine() {
 	a.listProjects()
 	a.populateProjectsViewList(context.Background())
 	for _, project := range a.projects {
-		go a.createIssuePage(project)
+		a.createIssuePage(project)
 	}
 }
 
@@ -80,8 +80,9 @@ func projectsViewInputCapture(event *tcell.EventKey) *tcell.EventKey {
 }
 
 func (a *App) createIssuePage(project *gitlab.Project) {
-	a.projectIssues[project] = listProjectIssues(project)
-	issueView, textView := createIssueView(a.projectIssues[project])
+	issues := listProjectIssues(project)
+	a.projectIssues[project] = issues
+	issueView, textView := createIssueView(issues)
 	issueView.SetInputCapture(issueViewInputCapture)
 	a.safeIssueViews.mu.Lock()
 	a.safeIssueViews.issueViews[project] = textView

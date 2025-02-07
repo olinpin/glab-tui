@@ -30,8 +30,17 @@ func projectsGrid(menu *tview.List) *tview.Flex {
 	return mainUI
 }
 
+func (a *App) findProject(text string) *gitlab.Project {
+	for _, project := range a.projects {
+		if project.Name == text {
+			return project
+		}
+	}
+	return nil
+}
+
 func handleProjectSelect(index int, mainText string, secondaryText string, shortcut rune) {
-	app.currentProject = app.projects[index]
+	app.currentProject = app.findProject(mainText)
 	issues := listProjectIssues(app.currentProject)
 	var text string = ""
 	for _, issue := range issues {
@@ -40,8 +49,8 @@ func handleProjectSelect(index int, mainText string, secondaryText string, short
 	app.projectsTextView.SetText(text)
 }
 
-func createPrimitive(text string) *tview.TextView {
-	textView := tview.NewTextView().SetDynamicColors(true).SetRegions(true).SetChangedFunc(func() { app.tviewApp.Draw() })
+func (a *App) createPrimitive(text string) *tview.TextView {
+	textView := tview.NewTextView().SetDynamicColors(true).SetRegions(true).SetChangedFunc(func() { a.tviewApp.Draw() })
 	textView.SetText(text)
 	textView.SetBorder(true)
 	return textView
@@ -126,10 +135,14 @@ func (a *App) showProjects() {
 		handleProjectSelect(0, "", "", 'a')
 	}
 
-	a.projectsViewList = setNavigation(a.projectsViewList)
+	a.projectsViewList = setNavigation(a.projectsViewList, func(event *tcell.EventKey) {
+		if event.Key() == tcell.KeyTab && a.projectsViewList.HasFocus() {
+			a.tviewApp.SetFocus(a.projectSearchField)
+		}
+	})
 }
 
-func setNavigation(list *tview.List) *tview.List {
+func setNavigation(list *tview.List, extraHandler func(event *tcell.EventKey)) *tview.List {
 	list.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		k := event.Rune()
 		currentItem := list.GetCurrentItem()
@@ -147,6 +160,9 @@ func setNavigation(list *tview.List) *tview.List {
 		case 'G':
 			list.SetCurrentItem(list.GetItemCount() - 1)
 		}
+		if extraHandler != nil {
+			extraHandler(event)
+		}
 		return event
 	})
 	return list
@@ -160,7 +176,7 @@ func showAllIssues(issues []*gitlab.Issue) *tview.List {
 		list.AddItem(issue.Title, string(issue.ID), 0, nil)
 	}
 
-	list = setNavigation(list)
+	list = setNavigation(list, nil)
 
 	return list
 }
@@ -184,8 +200,15 @@ func InputFieldChangedFunc(text string) {
 func (a *App) CreateSearchField() *tview.InputField {
 	a.projectSearchField = tview.NewInputField().
 		SetLabel("Search: ")
-		// a.projectSearchField.SetInputCapture(SearchInputCapture)
 	a.projectSearchField.SetChangedFunc(InputFieldChangedFunc)
+	a.projectSearchField.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyTab && a.projectSearchField.HasFocus() {
+			a.tviewApp.SetFocus(a.projectsViewList)
+		} else if event.Key() == tcell.KeyEnter {
+			a.pages.SwitchToPage("issues" + a.currentProject.Name)
+		}
+		return event
+	})
 	return a.projectSearchField
 }
 
@@ -197,7 +220,7 @@ func (a *App) createProjectsView() {
 
 func createIssueView(issues []*gitlab.Issue) (*tview.Flex, *tview.TextView) {
 	issueView := showAllIssues(issues)
-	textView := createPrimitive("")
+	textView := app.createPrimitive("")
 	if len(issues) > 0 {
 		issueText := getIssueDetails(issues[0])
 		textView.SetText(issueText)
@@ -206,7 +229,11 @@ func createIssueView(issues []*gitlab.Issue) (*tview.Flex, *tview.TextView) {
 }
 
 func handleIssueSelect(index int, mainText string, secondaryText string, shortcut rune) {
-	issues := app.projectIssues[app.currentProject]
+	issues, ok := app.projectIssues[app.currentProject]
+	if !ok {
+		return
+	}
+
 	issueText := getIssueDetails(issues[index])
 	app.safeIssueViews.mu.Lock()
 	textView, _ := app.safeIssueViews.issueViews[app.currentProject]
