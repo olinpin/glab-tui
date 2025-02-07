@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"sync"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -18,56 +19,76 @@ type TimedCached struct {
 	value     any
 }
 
-var app *tview.Application
-var projectsView *tview.Flex
-var projectsViewList *tview.List
-var projects []*gitlab.Project
-var projectIssues map[*gitlab.Project][]*gitlab.Issue
-var git *gitlab.Client
-var projectsTextView *tview.TextView
-var cache map[string]TimedCached
-var pages *tview.Pages
-var currentProject *gitlab.Project
-var issueViews map[*gitlab.Project]*tview.TextView
+type App struct {
+	tviewApp         *tview.Application
+	projectsView     *tview.Flex
+	projectsViewList *tview.List
+	projects         []*gitlab.Project
+	projectIssues    map[*gitlab.Project][]*gitlab.Issue
+	git              *gitlab.Client
+	projectsTextView *tview.TextView
+	cache            map[string]TimedCached
+	pages            *tview.Pages
+	currentProject   *gitlab.Project
+	safeIssueViews       SafeIssueViews
+}
 
-func getProjectsAndIssuesRoutine() {
-	projects = listProjects()
-	populateProjectsViewList(projects)
-	for _, project := range projects {
-		issues := listProjectIssues(project)
-		projectIssues[project] = issues
-		issueView, textView := createIssueView(issues)
-		issueViews[project] = textView
-		pages.AddPage("issues"+project.Name, issueView, true, false)
+type SafeIssueViews struct {
+	issueViews map[*gitlab.Project]*tview.TextView
+	mu         sync.Mutex
+}
+
+var app App
+
+func createApp() *App {
+	a := App{}
+	a.git = getGitlab(os.Getenv("GITLAB_TOKEN"), "https://gitlab.utwente.nl")
+	a.cache = map[string]TimedCached{}
+	a.projectIssues = map[*gitlab.Project][]*gitlab.Issue{}
+    a.safeIssueViews = SafeIssueViews{issueViews: map[*gitlab.Project]*tview.TextView{}}
+	a.tviewApp = tview.NewApplication()
+	a.pages = tview.NewPages()
+	a.projects = []*gitlab.Project{}
+	a.projectsTextView = createPrimitive("")
+	return &a
+}
+
+func (a *App) getProjectsAndIssuesRoutine() {
+	a.listProjects()
+	a.populateProjectsViewList()
+	for _, project := range a.projects {
+		go a.createIssuePage(project)
 	}
 }
+
+func (a *App) createIssuePage(project *gitlab.Project) {
+	a.projectIssues[project] = listProjectIssues(project)
+	issueView, textView := createIssueView(a.projectIssues[project])
+    a.safeIssueViews.mu.Lock()
+	a.safeIssueViews.issueViews[project] = textView
+    a.safeIssueViews.mu.Unlock()
+	a.pages.AddPage("issues"+project.Name, issueView, true, false)
+}
+
 func main() {
-	git = getGitlab(os.Getenv("GITLAB_TOKEN"), "https://gitlab.utwente.nl")
-	cache = map[string]TimedCached{}
-	projectIssues = map[*gitlab.Project][]*gitlab.Issue{}
-	issueViews = map[*gitlab.Project]*tview.TextView{}
+	app = *createApp()
+	app.showProjects()
+	go app.getProjectsAndIssuesRoutine()
 
-	// create app and pages
-	app = tview.NewApplication()
-	pages = tview.NewPages()
+	app.createProjectsView()
 
-	go getProjectsAndIssuesRoutine()
-
-	projectsView = createProjectsView([]*gitlab.Project{})
-	pages.AddPage("projects", projectsView, true, true)
-
-	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	app.tviewApp.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		k := event.Key()
 		if k == tcell.KeyEsc {
-			pages.SwitchToPage("projects")
+			app.pages.SwitchToPage("projects")
 		} else if event.Rune() == 'q' {
-			app.Stop()
+			app.tviewApp.Stop()
 		}
 		return event
 	})
 
-	if err := app.SetRoot(pages, true).SetFocus(pages).Run(); err != nil {
+	if err := app.tviewApp.SetRoot(app.pages, true).SetFocus(app.pages).Run(); err != nil {
 		panic(err)
-		app.Stop()
+		app.tviewApp.Stop()
 	}
 }

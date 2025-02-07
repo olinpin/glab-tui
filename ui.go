@@ -10,68 +10,67 @@ func projectsGrid(menu *tview.List) *tview.Flex {
 	menu.SetChangedFunc(handleProjectSelect)
 
 	menu.SetTitle("Projects").SetBorder(true)
-	projectsTextView.SetTitle("Issues").SetBorder(true)
+	app.projectsTextView.SetTitle("Issues").SetBorder(true)
 
 	mainUI := tview.NewFlex().
 		AddItem(menu, 45, 1, true).
-		AddItem(projectsTextView, 0, 3, false)
+		AddItem(app.projectsTextView, 0, 3, false)
 
 	return mainUI
 }
 
 func handleProjectSelect(index int, mainText string, secondaryText string, shortcut rune) {
-	currentProject = projects[index]
-	issues := listProjectIssues(currentProject)
+	app.currentProject = app.projects[index]
+	issues := listProjectIssues(app.currentProject)
 	var text string = ""
 	for _, issue := range issues {
 		text += "# " + issue.Title + "\n"
 	}
-	projectsTextView.SetText(text)
+	app.projectsTextView.SetText(text)
 }
 
 func createPrimitive(text string) *tview.TextView {
-	textView := tview.NewTextView().SetDynamicColors(true).SetRegions(true).SetChangedFunc(func() { app.Draw() })
+	textView := tview.NewTextView().SetDynamicColors(true).SetRegions(true).SetChangedFunc(func() { app.tviewApp.Draw() })
 	textView.SetText(text)
 	textView.SetBorder(true)
 	return textView
 }
 
-func populateProjectsViewList(projects []*gitlab.Project) {
-	for _, project := range projects {
-		projectsViewList.AddItem(project.Name, string(project.ID), rune(0), func() {
-			pages.SwitchToPage("issues" + project.Name)
+func (a *App) populateProjectsViewList() {
+	for _, project := range a.projects {
+		a.projectsViewList.AddItem(project.Name, string(project.ID), rune(0), func() {
+			a.pages.SwitchToPage("issues" + project.Name)
 		})
 	}
 }
 
-func showProjects(projects []*gitlab.Project) *tview.List {
-	projectsViewList = tview.NewList().
+func (a *App) showProjects() {
+	a.projectsViewList = tview.NewList().
 		ShowSecondaryText(false)
-	populateProjectsViewList(projects)
-	if len(projects) > 0 {
+	a.populateProjectsViewList()
+	if len(a.projects) > 0 {
 		handleProjectSelect(0, "", "", 'a')
 	}
 
-	projectsViewList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	a.projectsViewList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		k := event.Rune()
-		currentItem := projectsViewList.GetCurrentItem()
+		currentItem := a.projectsViewList.GetCurrentItem()
 		switch k {
 		case 'j':
-			if currentItem < projectsViewList.GetItemCount() {
-				projectsViewList.SetCurrentItem(currentItem + 1)
+			if currentItem < a.projectsViewList.GetItemCount() {
+				a.projectsViewList.SetCurrentItem(currentItem + 1)
 			}
 		case 'k':
 			if currentItem > 0 {
-				projectsViewList.SetCurrentItem(currentItem + -1)
+				a.projectsViewList.SetCurrentItem(currentItem + -1)
 			}
 		case 'g':
-			projectsViewList.SetCurrentItem(0)
+			a.projectsViewList.SetCurrentItem(0)
 		case 'G':
-			projectsViewList.SetCurrentItem(projectsViewList.GetItemCount() - 1)
+			a.projectsViewList.SetCurrentItem(a.projectsViewList.GetItemCount() - 1)
 		}
 		return event
 	})
-	return projectsViewList
 }
 
 func showAllIssues(issues []*gitlab.Issue) *tview.List {
@@ -105,12 +104,9 @@ func showAllIssues(issues []*gitlab.Issue) *tview.List {
 	return list
 }
 
-func createProjectsView(projects []*gitlab.Project) *tview.Flex {
-	if projectsTextView == nil {
-		projectsTextView = createPrimitive("")
-	}
-	projectsUI := showProjects(projects)
-	return projectsGrid(projectsUI)
+func (a *App) createProjectsView() {
+	a.projectsView = projectsGrid(a.projectsViewList)
+	a.pages.AddPage("projects", app.projectsView, true, true)
 }
 
 func createIssueView(issues []*gitlab.Issue) (*tview.Flex, *tview.TextView) {
@@ -124,9 +120,11 @@ func createIssueView(issues []*gitlab.Issue) (*tview.Flex, *tview.TextView) {
 }
 
 func handleIssueSelect(index int, mainText string, secondaryText string, shortcut rune) {
-	issues := projectIssues[currentProject]
+	issues := app.projectIssues[app.currentProject]
 	issueText := getIssueDetails(issues[index])
-	textView, _ := issueViews[currentProject]
+	app.safeIssueViews.mu.Lock()
+	textView, _ := app.safeIssueViews.issueViews[app.currentProject]
+	app.safeIssueViews.mu.Unlock()
 	textView.SetText(issueText)
 }
 

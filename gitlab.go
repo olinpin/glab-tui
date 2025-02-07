@@ -16,9 +16,9 @@ func getGitlab(token string, url string) *gitlab.Client {
 	return git
 }
 
-func listProjects() []*gitlab.Project {
+func (a *App) listProjects() {
 	opt := &gitlab.ListProjectsOptions{}
-	projects, _, err := git.Projects.ListProjects(opt)
+	projects, _, err := a.git.Projects.ListProjects(opt)
 	if err != nil {
 		handleError(err)
 	}
@@ -26,7 +26,7 @@ func listProjects() []*gitlab.Project {
 	sort.Slice(projects, func(i, j int) bool {
 		return strings.ToLower(projects[i].Name) < strings.ToLower(projects[j].Name)
 	})
-	return projects
+	a.projects = projects
 }
 
 func listProjectIssues(project *gitlab.Project) []*gitlab.Issue {
@@ -34,16 +34,16 @@ func listProjectIssues(project *gitlab.Project) []*gitlab.Issue {
 	var key string = "project" + string(project.ID)
 	var timestamp int64 = time.Now().Unix()
 
-	cacheHit, i := cache[key]
+	cacheHit, i := app.cache[key]
 	if i && cacheHit.timestamp > timestamp+60 {
 		return cacheHit.value.([]*gitlab.Issue)
 	}
 	opt := &gitlab.ListProjectIssuesOptions{}
-	issues, _, err := git.Issues.ListProjectIssues(project.ID, opt)
+	issues, _, err := app.git.Issues.ListProjectIssues(project.ID, opt)
 	if err != nil {
 		handleError(err)
 	}
-	cache[key] = TimedCached{timestamp, issues}
+	app.cache[key] = TimedCached{timestamp, issues}
 	return issues
 }
 
