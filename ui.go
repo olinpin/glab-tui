@@ -52,35 +52,10 @@ func (a *App) showProjects() {
 		handleProjectSelect(0, "", "", 'a')
 	}
 
-	a.projectsViewList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		k := event.Rune()
-		currentItem := a.projectsViewList.GetCurrentItem()
-		switch k {
-		case 'j':
-			if currentItem < a.projectsViewList.GetItemCount() {
-				a.projectsViewList.SetCurrentItem(currentItem + 1)
-			}
-		case 'k':
-			if currentItem > 0 {
-				a.projectsViewList.SetCurrentItem(currentItem + -1)
-			}
-		case 'g':
-			a.projectsViewList.SetCurrentItem(0)
-		case 'G':
-			a.projectsViewList.SetCurrentItem(a.projectsViewList.GetItemCount() - 1)
-		}
-		return event
-	})
+	a.projectsViewList = setNavigation(a.projectsViewList)
 }
 
-func showAllIssues(issues []*gitlab.Issue) *tview.List {
-	list := tview.NewList().
-		ShowSecondaryText(false)
-
-	for _, issue := range issues {
-		list.AddItem(issue.Title, string(issue.ID), 0, nil)
-	}
-	// TODO: This is repetative copy paste code, figure out how to generalize it
+func setNavigation(list *tview.List) *tview.List {
 	list.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		k := event.Rune()
 		currentItem := list.GetCurrentItem()
@@ -100,6 +75,18 @@ func showAllIssues(issues []*gitlab.Issue) *tview.List {
 		}
 		return event
 	})
+	return list
+}
+
+func showAllIssues(issues []*gitlab.Issue) *tview.List {
+	list := tview.NewList().
+		ShowSecondaryText(false)
+
+	for _, issue := range issues {
+		list.AddItem(issue.Title, string(issue.ID), 0, nil)
+	}
+
+	list = setNavigation(list)
 
 	return list
 }
