@@ -4,9 +4,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-
 var app App
-
 
 func main() {
 	app = *createApp()

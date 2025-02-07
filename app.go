@@ -27,7 +27,6 @@ type App struct {
 	safeIssueViews   SafeIssueViews
 }
 
-
 type TimedCached struct {
 	timestamp int64
 	value     any
