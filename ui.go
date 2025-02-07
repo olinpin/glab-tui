@@ -36,35 +36,42 @@ func createPrimitive(text string) *tview.TextView {
 	return textView
 }
 
-func showProjects(projects []*gitlab.Project) *tview.List {
-	list := tview.NewList().
-		ShowSecondaryText(false)
-
+func populateProjectsViewList(projects []*gitlab.Project) {
 	for _, project := range projects {
-		list.AddItem(project.Name, string(project.ID), rune(0), func() {
+		projectsViewList.AddItem(project.Name, string(project.ID), rune(0), func() {
 			pages.SwitchToPage("issues" + project.Name)
 		})
 	}
-	list.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+}
+
+func showProjects(projects []*gitlab.Project) *tview.List {
+	projectsViewList = tview.NewList().
+		ShowSecondaryText(false)
+	populateProjectsViewList(projects)
+	if len(projects) > 0 {
+		handleProjectSelect(0, "", "", 'a')
+	}
+
+	projectsViewList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		k := event.Rune()
-		currentItem := list.GetCurrentItem()
+		currentItem := projectsViewList.GetCurrentItem()
 		switch k {
 		case 'j':
-			if currentItem < list.GetItemCount() {
-				list.SetCurrentItem(currentItem + 1)
+			if currentItem < projectsViewList.GetItemCount() {
+				projectsViewList.SetCurrentItem(currentItem + 1)
 			}
 		case 'k':
 			if currentItem > 0 {
-				list.SetCurrentItem(currentItem + -1)
+				projectsViewList.SetCurrentItem(currentItem + -1)
 			}
 		case 'g':
-			list.SetCurrentItem(0)
+			projectsViewList.SetCurrentItem(0)
 		case 'G':
-			list.SetCurrentItem(list.GetItemCount() - 1)
+			projectsViewList.SetCurrentItem(projectsViewList.GetItemCount() - 1)
 		}
 		return event
 	})
-	return list
+	return projectsViewList
 }
 
 func showAllIssues(issues []*gitlab.Issue) *tview.List {
@@ -99,11 +106,10 @@ func showAllIssues(issues []*gitlab.Issue) *tview.List {
 }
 
 func createProjectsView(projects []*gitlab.Project) *tview.Flex {
-	projectsUI := showProjects(projects)
 	if projectsTextView == nil {
 		projectsTextView = createPrimitive("")
 	}
-	handleProjectSelect(0, "", "", 'a')
+	projectsUI := showProjects(projects)
 	return projectsGrid(projectsUI)
 }
 

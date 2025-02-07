@@ -20,6 +20,7 @@ type TimedCached struct {
 
 var app *tview.Application
 var projectsView *tview.Flex
+var projectsViewList *tview.List
 var projects []*gitlab.Project
 var projectIssues map[*gitlab.Project][]*gitlab.Issue
 var git *gitlab.Client
@@ -29,20 +30,9 @@ var pages *tview.Pages
 var currentProject *gitlab.Project
 var issueViews map[*gitlab.Project]*tview.TextView
 
-// TODO: loading is taking way too long, first open the app and then populate the projects list and then download the issues on select
-
-func main() {
-	git = getGitlab(os.Getenv("GITLAB_TOKEN"), "https://gitlab.utwente.nl")
+func getProjectsAndIssuesRoutine() {
 	projects = listProjects()
-	cache = map[string]TimedCached{}
-	projectIssues = map[*gitlab.Project][]*gitlab.Issue{}
-	issueViews = map[*gitlab.Project]*tview.TextView{}
-
-	// var project string = "s2969912/glabtest"
-	app = tview.NewApplication()
-	pages = tview.NewPages()
-	projectsView = createProjectsView(projects)
-	pages.AddPage("projects", projectsView, true, true)
+	populateProjectsViewList(projects)
 	for _, project := range projects {
 		issues := listProjectIssues(project)
 		projectIssues[project] = issues
@@ -50,6 +40,21 @@ func main() {
 		issueViews[project] = textView
 		pages.AddPage("issues"+project.Name, issueView, true, false)
 	}
+}
+func main() {
+	git = getGitlab(os.Getenv("GITLAB_TOKEN"), "https://gitlab.utwente.nl")
+	cache = map[string]TimedCached{}
+	projectIssues = map[*gitlab.Project][]*gitlab.Issue{}
+	issueViews = map[*gitlab.Project]*tview.TextView{}
+
+	// create app and pages
+	app = tview.NewApplication()
+	pages = tview.NewPages()
+
+	go getProjectsAndIssuesRoutine()
+
+	projectsView = createProjectsView([]*gitlab.Project{})
+	pages.AddPage("projects", projectsView, true, true)
 
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		k := event.Key()
