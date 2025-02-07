@@ -1,7 +1,12 @@
 package main
 
 import (
+	"context"
+	"sort"
+	"strings"
+
 	"github.com/gdamore/tcell/v2"
+	"github.com/lithammer/fuzzysearch/fuzzy"
 	"github.com/rivo/tview"
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
@@ -12,8 +17,14 @@ func projectsGrid(menu *tview.List) *tview.Flex {
 	menu.SetTitle("Projects").SetBorder(true)
 	app.projectsTextView.SetTitle("Issues").SetBorder(true)
 
+	searchField := app.CreateSearchField()
+	grid := tview.NewFlex().
+		SetDirection(tview.FlexRow).
+		AddItem(searchField, 1, 0, true).
+		AddItem(menu, 0, 1, false)
+
 	mainUI := tview.NewFlex().
-		AddItem(menu, 45, 1, true).
+		AddItem(grid, 45, 1, true).
 		AddItem(app.projectsTextView, 0, 3, false)
 
 	return mainUI
@@ -36,18 +47,81 @@ func createPrimitive(text string) *tview.TextView {
 	return textView
 }
 
-func (a *App) populateProjectsViewList() {
-	for _, project := range a.projects {
-		a.projectsViewList.AddItem(project.Name, string(project.ID), rune(0), func() {
-			a.pages.SwitchToPage("issues" + project.Name)
-		})
+func (a *App) populateProjectsViewList(ctx context.Context) {
+	var projects []*gitlab.Project
+	if a.projectSearchField.GetText() == "" {
+		projects = a.projects
+	} else {
+		projects = a.searchProjects(ctx)
 	}
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		a.projectsViewList.Clear()
+		for _, project := range projects {
+			a.projectsViewList.AddItem(project.Name, string(project.ID), rune(0), func() {
+				a.pages.SwitchToPage("issues" + project.Name)
+			})
+		}
+	}
+}
+
+func (a *App) searchProjects(ctx context.Context) []*gitlab.Project {
+	if ctx.Err() != nil {
+		return nil
+	}
+
+	searchString := a.projectSearchField.GetText()
+	projectNamesMap := make(map[string]*gitlab.Project, len(a.projects))
+	projectNames := make([]string, 0, len(a.projects))
+
+	for _, project := range a.projects {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			projectNames = append(projectNames, project.Name)
+			projectNamesMap[project.Name] = project
+		}
+	}
+
+	names := fuzzy.RankFindFold(searchString, projectNames)
+	sort.Sort(names)
+	projects := addToArray([]*gitlab.Project{}, projectNamesMap, names)
+	return projects
+}
+
+func addToArray(projects []*gitlab.Project, m map[string]*gitlab.Project, values []fuzzy.Rank) []*gitlab.Project {
+	for _, value := range values {
+		project := m[value.Target]
+		if !contains(projects, project) {
+			projects = append(projects, project)
+		}
+	}
+	return projects
+}
+
+func contains[T comparable](s []T, value T) bool {
+	for _, v := range s {
+		if v == value {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) searchProjectsViewList() []int {
+	searchString := a.projectSearchField.GetText()
+	var ignoreCase bool = strings.ToLower(searchString) == searchString
+	indices := a.projectsViewList.FindItems(searchString, searchString, false, ignoreCase)
+	return indices
 }
 
 func (a *App) showProjects() {
 	a.projectsViewList = tview.NewList().
 		ShowSecondaryText(false)
-	a.populateProjectsViewList()
+	a.populateProjectsViewList(context.Background())
 	if len(a.projects) > 0 {
 		handleProjectSelect(0, "", "", 'a')
 	}
@@ -91,8 +165,33 @@ func showAllIssues(issues []*gitlab.Issue) *tview.List {
 	return list
 }
 
+func InputFieldChangedFunc(text string) {
+	if app.searchCancel != nil {
+		app.searchCancel()
+		app.searchCancel = nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	app.searchCancel = cancel
+
+	go func() {
+		app.tviewApp.QueueUpdateDraw(func() {
+			app.populateProjectsViewList(ctx)
+		})
+	}()
+}
+
+func (a *App) CreateSearchField() *tview.InputField {
+	a.projectSearchField = tview.NewInputField().
+		SetLabel("Search: ")
+		// a.projectSearchField.SetInputCapture(SearchInputCapture)
+	a.projectSearchField.SetChangedFunc(InputFieldChangedFunc)
+	return a.projectSearchField
+}
+
 func (a *App) createProjectsView() {
 	a.projectsView = projectsGrid(a.projectsViewList)
+	a.projectsView.SetInputCapture(projectsViewInputCapture)
 	a.pages.AddPage("projects", app.projectsView, true, true)
 }
 

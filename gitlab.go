@@ -34,7 +34,9 @@ func listProjectIssues(project *gitlab.Project) []*gitlab.Issue {
 	var key string = "project" + string(project.ID)
 	var timestamp int64 = time.Now().Unix()
 
-	cacheHit, i := app.cache[key]
+	app.safeCache.mu.Lock()
+	cacheHit, i := app.safeCache.cache[key]
+	app.safeCache.mu.Unlock()
 	if i && cacheHit.timestamp > timestamp+60 {
 		return cacheHit.value.([]*gitlab.Issue)
 	}
@@ -43,7 +45,9 @@ func listProjectIssues(project *gitlab.Project) []*gitlab.Issue {
 	if err != nil {
 		handleError(err)
 	}
-	app.cache[key] = TimedCached{timestamp, issues}
+	app.safeCache.mu.Lock()
+	app.safeCache.cache[key] = TimedCached{timestamp, issues}
+	app.safeCache.mu.Unlock()
 	return issues
 }
 
