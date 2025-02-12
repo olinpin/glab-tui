@@ -6,6 +6,8 @@ import (
 
 var app App
 
+// TODO: rewrite have a type/struct for the entire page and then generalize the search function and the grid function and all those functions to work with the entire page
+
 func main() {
 	app = *createApp()
 	app.showProjects()
