@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/lithammer/fuzzysearch/fuzzy"
@@ -61,13 +60,6 @@ func contains(s []ListItem, value ListItem) bool {
 		}
 	}
 	return false
-}
-
-func (a *App) searchProjectsViewList() []int {
-	searchString := a.projectSearchField.GetText()
-	var ignoreCase bool = strings.ToLower(searchString) == searchString
-	indices := a.projectsViewList.FindItems(searchString, searchString, false, ignoreCase)
-	return indices
 }
 
 func (a *App) createProjectListView() {

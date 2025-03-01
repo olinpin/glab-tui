@@ -112,14 +112,6 @@ func viewInputCapture(event *tcell.EventKey) *tcell.EventKey {
 	return event
 }
 
-func projectsViewInputCapture(event *tcell.EventKey) *tcell.EventKey {
-	k := event.Key()
-	if k == tcell.KeyEsc {
-		app.pages.SwitchToPage("projects")
-	}
-	return event
-}
-
 func (a *App) createIssuePage(project ListItem) {
 	// TODO: fix once you start fixing issue pages
 	// issues := listProjectIssues(project)
