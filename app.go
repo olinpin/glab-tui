@@ -66,17 +66,6 @@ func (i IssueWrapper) Name() string {
 	return i.issue.Title
 }
 
-type Page struct {
-	searchField  *tview.InputField
-	searchCancel context.CancelFunc
-	gridView     *tview.Flex
-	columnView   *tview.Flex
-	listView     *tview.List
-	textView     *tview.TextView
-	listItems    []ListItem
-	currentItem  ListItem
-}
-
 type TimedCached struct {
 	timestamp int64
 	value     any
