@@ -11,107 +11,140 @@ import (
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
-func projectsGrid(menu *tview.List) *tview.Flex {
-	menu.SetChangedFunc(handleProjectSelect)
+func (a *App) SetFocus(primitive tview.Primitive) {
+	app.tviewApp.SetFocus(primitive)
+}
 
-	menu.SetTitle("Projects").SetBorder(true)
-	app.projectsTextView.SetTitle("Issues").SetBorder(true)
+func (p *Page) CreateSearchField(SetFocus func(tview.Primitive), SwitchToPage func(string) *tview.Pages) {
+	p.searchField = tview.NewInputField().
+		SetLabel("Search: ")
+	p.searchField.SetChangedFunc(p.InputFieldChangedFunc)
 
-	searchField := app.CreateSearchField()
+	p.searchField.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyTab && p.searchField.HasFocus() {
+			SetFocus(p.listView)
+		} else if event.Key() == tcell.KeyEnter {
+			SwitchToPage("issues" + p.currentItem.Name())
+		}
+		return event
+	})
+}
+
+func (p *Page) CreatePageGrid() {
+	p.listView.SetBorder(true)
+	p.textView.SetBorder(true)
+
+	p.columnView = tview.NewFlex().
+		SetDirection(tview.FlexRow).
+		AddItem(p.searchField, 1, 0, true).
+		AddItem(p.listView, 0, 1, false)
+
+	p.gridView = tview.NewFlex().
+		AddItem(p.columnView, 45, 1, true).
+		AddItem(p.textView, 0, 3, false)
+
+	p.gridView.SetInputCapture(viewInputCapture)
+}
+
+func createpage(page Page) *tview.Flex {
 	grid := tview.NewFlex().
 		SetDirection(tview.FlexRow).
-		AddItem(searchField, 1, 0, true).
-		AddItem(menu, 0, 1, false)
+		AddItem(page.searchField, 1, 0, true).
+		AddItem(page.listView, 0, 1, false)
 
 	mainUI := tview.NewFlex().
 		AddItem(grid, 45, 1, true).
-		AddItem(app.projectsTextView, 0, 3, false)
+		AddItem(page.textView, 0, 3, false)
 
 	return mainUI
 }
 
-func (a *App) findProject(text string) *gitlab.Project {
-	for _, project := range a.projects {
-		if project.Name == text {
-			return project
+func (a *App) findItem(text string, items []ListItem) ListItem {
+	for _, item := range items {
+		if item.Name() == text {
+			return item
 		}
 	}
 	return nil
 }
 
-func handleProjectSelect(index int, mainText string, secondaryText string, shortcut rune) {
-	app.currentProject = app.findProject(mainText)
-	issues := listProjectIssues(app.currentProject)
+func (a *App) handleProjectSelect(index int, mainText string, secondaryText string, shortcut rune) {
+	a.projectsPage.currentItem = a.findItem(mainText, a.projectsPage.listItems)
+	issues := listProjectIssues(a.projectsPage.currentItem)
 	var text string = ""
 	for _, issue := range issues {
 		text += "# " + issue.Title + "\n"
 	}
-	app.projectsTextView.SetText(text)
+	a.projectsPage.textView.SetText(text)
 }
 
-func (a *App) createPrimitive(text string) *tview.TextView {
+func (a *App) createPrimitive(title string) *tview.TextView {
 	textView := tview.NewTextView().SetDynamicColors(true).SetRegions(true).SetChangedFunc(func() { a.tviewApp.Draw() })
-	textView.SetText(text)
+	textView.SetTitle(title)
 	textView.SetBorder(true)
 	return textView
 }
 
-func (a *App) populateProjectsViewList(ctx context.Context) {
-	var projects []*gitlab.Project
-	if a.projectSearchField.GetText() == "" {
-		projects = a.projects
+func (a *App) switchToPageFunc(pageName string) *tview.Pages {
+	return a.pages.SwitchToPage(pageName)
+}
+
+func (page *Page) populateProjectsViewList(ctx context.Context, listFn func(string) *tview.Pages) {
+	var items []ListItem
+	if page.searchField.GetText() == "" {
+		items = page.listItems
 	} else {
-		projects = a.searchProjects(ctx)
+		items = page.searchItems(ctx)
 	}
 	select {
 	case <-ctx.Done():
 		return
 	default:
-		a.projectsViewList.Clear()
-		for _, project := range projects {
-			a.projectsViewList.AddItem(project.Name, string(project.ID), rune(0), func() {
-				a.pages.SwitchToPage("issues" + project.Name)
-			})
+		page.listView.Clear()
+		for _, item := range items {
+			var pageName string = "issues" + item.Name()
+			page.listView.AddItem(item.Name(), string(item.ID()), rune(0), func() { listFn(pageName) })
 		}
 	}
 }
 
-func (a *App) searchProjects(ctx context.Context) []*gitlab.Project {
+func (p *Page) searchItems(ctx context.Context) []ListItem {
 	if ctx.Err() != nil {
 		return nil
 	}
 
-	searchString := a.projectSearchField.GetText()
-	projectNamesMap := make(map[string]*gitlab.Project, len(a.projects))
-	projectNames := make([]string, 0, len(a.projects))
+	searchString := p.searchField.GetText()
 
-	for _, project := range a.projects {
+	itemNamesMap := make(map[string]ListItem, len(p.listItems))
+	itemNames := make([]string, 0, len(p.listItems))
+
+	for _, item := range p.listItems {
 		select {
 		case <-ctx.Done():
 			return nil
 		default:
-			projectNames = append(projectNames, project.Name)
-			projectNamesMap[project.Name] = project
+			itemNames = append(itemNames, item.Name())
+			itemNamesMap[item.Name()] = item
 		}
 	}
 
-	names := fuzzy.RankFindFold(searchString, projectNames)
+	names := fuzzy.RankFindFold(searchString, itemNames)
 	sort.Sort(names)
-	projects := addToArray([]*gitlab.Project{}, projectNamesMap, names)
+	projects := addToArray([]ListItem{}, itemNamesMap, names)
 	return projects
 }
 
-func addToArray(projects []*gitlab.Project, m map[string]*gitlab.Project, values []fuzzy.Rank) []*gitlab.Project {
+func addToArray(items []ListItem, m map[string]ListItem, values []fuzzy.Rank) []ListItem {
 	for _, value := range values {
-		project := m[value.Target]
-		if !contains(projects, project) {
-			projects = append(projects, project)
+		item := m[value.Target]
+		if !contains(items, item) {
+			items = append(items, item)
 		}
 	}
-	return projects
+	return items
 }
 
-func contains[T comparable](s []T, value T) bool {
+func contains(s []ListItem, value ListItem) bool {
 	for _, v := range s {
 		if v == value {
 			return true
@@ -127,19 +160,30 @@ func (a *App) searchProjectsViewList() []int {
 	return indices
 }
 
-func (a *App) showProjects() {
-	a.projectsViewList = tview.NewList().
+func (a *App) createProjectListView() {
+	a.projectsPage.listView = tview.NewList().
 		ShowSecondaryText(false)
-	a.populateProjectsViewList(context.Background())
-	if len(a.projects) > 0 {
-		handleProjectSelect(0, "", "", 'a')
+	a.projectsPage.listView.SetTitle("Issues")
+
+	a.projectsPage.populateProjectsViewList(context.Background(), a.switchToPageFunc)
+	if len(a.projectsPage.listItems) > 0 {
+		// TODO: change this to use pages
+		a.handleProjectSelect(0, "", "", 'a')
 	}
 
-	a.projectsViewList = setNavigation(a.projectsViewList, func(event *tcell.EventKey) {
-		if event.Key() == tcell.KeyTab && a.projectsViewList.HasFocus() {
-			a.tviewApp.SetFocus(a.projectSearchField)
+	a.projectsPage.listView = setNavigation(a.projectsPage.listView, func(event *tcell.EventKey) {
+		if event.Key() == tcell.KeyTab && a.projectsPage.listView.HasFocus() {
+			a.tviewApp.SetFocus(a.projectsPage.searchField)
 		}
 	})
+	a.projectsPage.listView.SetChangedFunc(a.handleProjectSelect)
+}
+
+func (a *App) createProjectsPage() {
+	a.projectsPage.CreateSearchField(a.SetFocus, a.switchToPageFunc)
+	a.createProjectListView()
+	a.projectsPage.CreatePageGrid()
+	a.pages.AddPage("projects", a.projectsPage.gridView, true, true)
 }
 
 func setNavigation(list *tview.List, extraHandler func(event *tcell.EventKey)) *tview.List {
@@ -181,41 +225,21 @@ func showAllIssues(issues []*gitlab.Issue) *tview.List {
 	return list
 }
 
-func InputFieldChangedFunc(text string) {
-	if app.searchCancel != nil {
-		app.searchCancel()
-		app.searchCancel = nil
+func (p *Page) InputFieldChangedFunc(text string) {
+	if p.searchCancel != nil {
+		p.searchCancel()
+		p.searchCancel = nil
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	app.searchCancel = cancel
+	p.searchCancel = cancel
 
 	go func() {
+		// TODO: figure out if this can be abstracted so that we don't call the global app here
 		app.tviewApp.QueueUpdateDraw(func() {
-			app.populateProjectsViewList(ctx)
+			p.populateProjectsViewList(ctx, app.switchToPageFunc)
 		})
 	}()
-}
-
-func (a *App) CreateSearchField() *tview.InputField {
-	a.projectSearchField = tview.NewInputField().
-		SetLabel("Search: ")
-	a.projectSearchField.SetChangedFunc(InputFieldChangedFunc)
-	a.projectSearchField.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == tcell.KeyTab && a.projectSearchField.HasFocus() {
-			a.tviewApp.SetFocus(a.projectsViewList)
-		} else if event.Key() == tcell.KeyEnter {
-			a.pages.SwitchToPage("issues" + a.currentProject.Name)
-		}
-		return event
-	})
-	return a.projectSearchField
-}
-
-func (a *App) createProjectsView() {
-	a.projectsView = projectsGrid(a.projectsViewList)
-	a.projectsView.SetInputCapture(projectsViewInputCapture)
-	a.pages.AddPage("projects", app.projectsView, true, true)
 }
 
 func createIssueView(issues []*gitlab.Issue) (*tview.Flex, *tview.TextView) {

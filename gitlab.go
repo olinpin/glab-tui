@@ -26,12 +26,15 @@ func (a *App) listProjects() {
 	sort.Slice(projects, func(i, j int) bool {
 		return strings.ToLower(projects[i].Name) < strings.ToLower(projects[j].Name)
 	})
-	a.projects = projects
+	a.projectsPage.listItems = []ListItem{}
+	for _, project := range projects {
+		a.projectsPage.listItems = append(a.projectsPage.listItems, ProjectWrapper{project})
+	}
 }
 
-func listProjectIssues(project *gitlab.Project) []*gitlab.Issue {
+func listProjectIssues(item ListItem) []*gitlab.Issue {
 
-	var key string = "project" + string(project.ID)
+	var key string = "project" + string(item.ID())
 	var timestamp int64 = time.Now().Unix()
 
 	app.safeCache.mu.Lock()
@@ -41,7 +44,7 @@ func listProjectIssues(project *gitlab.Project) []*gitlab.Issue {
 		return cacheHit.value.([]*gitlab.Issue)
 	}
 	opt := &gitlab.ListProjectIssuesOptions{}
-	issues, _, err := app.git.Issues.ListProjectIssues(project.ID, opt)
+	issues, _, err := app.git.Issues.ListProjectIssues(item.ID(), opt)
 	if err != nil {
 		handleError(err)
 	}
