@@ -32,7 +32,7 @@ func (p *Page) InputFieldChangedFunc(text string) {
 	go func() {
 		// TODO: figure out if this can be abstracted so that we don't call the global app here
 		app.tviewApp.QueueUpdateDraw(func() {
-			p.populateProjectsViewList(ctx, app.switchToPageFunc)
+			p.PopulateListView(ctx, app.switchToPageFunc)
 		})
 	}()
 }
@@ -68,7 +68,7 @@ func (p *Page) CreatePageGrid() {
 	p.gridView.SetInputCapture(viewInputCapture)
 }
 
-func (page *Page) populateProjectsViewList(ctx context.Context, listFn func(string) *tview.Pages) {
+func (page *Page) PopulateListView(ctx context.Context, listFn func(string) *tview.Pages) {
 	var items []ListItem
 	if page.searchField.GetText() == "" {
 		items = page.listItems

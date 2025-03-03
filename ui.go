@@ -6,7 +6,6 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/lithammer/fuzzysearch/fuzzy"
 	"github.com/rivo/tview"
-	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
 func (a *App) SetFocus(primitive tview.Primitive) {
@@ -27,7 +26,7 @@ func (a *App) handleProjectSelect(index int, mainText string, secondaryText stri
 	issues := listProjectIssues(a.projectsPage.currentItem)
 	var text string = ""
 	for _, issue := range issues {
-		text += "# " + issue.Title + "\n"
+		text += "# " + issue.Name() + "\n"
 	}
 	a.projectsPage.textView.SetText(text)
 }
@@ -62,28 +61,27 @@ func contains(s []ListItem, value ListItem) bool {
 	return false
 }
 
-func (a *App) createProjectListView() {
-	a.projectsPage.listView = tview.NewList().
+func (p *Page) CreateListView(a *App, listTitle string, handleSelect func(index int, mainText string, secondaryText string, shortcut rune)) {
+	p.listView = tview.NewList().
 		ShowSecondaryText(false)
-	a.projectsPage.listView.SetTitle("Issues")
+	p.listView.SetTitle(listTitle)
 
-	a.projectsPage.populateProjectsViewList(context.Background(), a.switchToPageFunc)
-	if len(a.projectsPage.listItems) > 0 {
-		// TODO: change this to use pages
-		a.handleProjectSelect(0, "", "", 'a')
+	p.PopulateListView(context.Background(), a.switchToPageFunc)
+	if len(p.listItems) > 0 {
+		handleSelect(0, "", "", 'a')
 	}
 
-	a.projectsPage.listView = setNavigation(a.projectsPage.listView, func(event *tcell.EventKey) {
-		if event.Key() == tcell.KeyTab && a.projectsPage.listView.HasFocus() {
-			a.tviewApp.SetFocus(a.projectsPage.searchField)
+	p.listView = setNavigation(p.listView, func(event *tcell.EventKey) {
+		if event.Key() == tcell.KeyTab && p.listView.HasFocus() {
+			a.tviewApp.SetFocus(p.searchField)
 		}
 	})
-	a.projectsPage.listView.SetChangedFunc(a.handleProjectSelect)
+	p.listView.SetChangedFunc(handleSelect)
 }
 
 func (a *App) createProjectsPage() {
 	a.projectsPage.CreateSearchField(a.SetFocus, a.switchToPageFunc)
-	a.createProjectListView()
+	a.projectsPage.CreateListView(a, "Issues", a.handleProjectSelect)
 	a.projectsPage.CreatePageGrid()
 	a.pages.AddPage("projects", a.projectsPage.gridView, true, true)
 }
@@ -114,51 +112,17 @@ func setNavigation(list *tview.List, extraHandler func(event *tcell.EventKey)) *
 	return list
 }
 
-func showAllIssues(issues []*gitlab.Issue) *tview.List {
-	list := tview.NewList().
-		ShowSecondaryText(false)
-
-	for _, issue := range issues {
-		list.AddItem(issue.Title, string(issue.ID), 0, nil)
-	}
-
-	list = setNavigation(list, nil)
-
-	return list
-}
-
-func createIssueView(issues []*gitlab.Issue) (*tview.Flex, *tview.TextView) {
-	issueView := showAllIssues(issues)
-	textView := app.createPrimitive("")
-	if len(issues) > 0 {
-		issueText := getIssueDetails(issues[0])
-		textView.SetText(issueText)
-	}
-	return IssueGrid(issueView, textView), textView
-}
-
 func handleIssueSelect(index int, mainText string, secondaryText string, shortcut rune) {
-	issues, ok := app.projectIssues[app.currentProject]
-	if !ok {
+	currentProject := app.projectsPage.currentItem
+	issues, ok := app.projectIssues[currentProject]
+	if !ok || len(issues) == 0 {
 		return
 	}
 
 	issueText := getIssueDetails(issues[index])
 	app.safeIssueViews.mu.Lock()
-	textView, _ := app.safeIssueViews.issueViews[app.currentProject]
-	app.safeIssueViews.mu.Unlock()
+	page, _ := app.safeIssueViews.issueViews[currentProject]
+	textView := page.textView
 	textView.SetText(issueText)
-}
-
-func IssueGrid(menu *tview.List, main *tview.TextView) *tview.Flex {
-	menu.SetChangedFunc(handleIssueSelect)
-
-	menu.SetTitle("Issues").SetBorder(true)
-	main.SetTitle("Issue #").SetBorder(true)
-
-	mainUI := tview.NewFlex().
-		AddItem(menu, 45, 1, true).
-		AddItem(main, 0, 3, false)
-
-	return mainUI
+	app.safeIssueViews.mu.Unlock()
 }

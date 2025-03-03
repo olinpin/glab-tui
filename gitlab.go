@@ -32,33 +32,39 @@ func (a *App) listProjects() {
 	}
 }
 
-func listProjectIssues(item ListItem) []*gitlab.Issue {
-
-	var key string = "project" + string(item.ID())
+func listProjectIssues(project ListItem) []ListItem {
+	var key string = "project" + string(project.ID())
 	var timestamp int64 = time.Now().Unix()
 
 	app.safeCache.mu.Lock()
 	cacheHit, i := app.safeCache.cache[key]
 	app.safeCache.mu.Unlock()
 	if i && cacheHit.timestamp > timestamp+60 {
-		return cacheHit.value.([]*gitlab.Issue)
+		return cacheHit.value.([]ListItem)
 	}
 	opt := &gitlab.ListProjectIssuesOptions{}
-	issues, _, err := app.git.Issues.ListProjectIssues(item.ID(), opt)
+	issues, _, err := app.git.Issues.ListProjectIssues(project.ID(), opt)
 	if err != nil {
 		handleError(err)
 	}
+
+	issueItems := []ListItem{}
+	for _, issue := range issues {
+		issueItems = append(issueItems, IssueWrapper{issue})
+	}
+
 	app.safeCache.mu.Lock()
-	app.safeCache.cache[key] = TimedCached{timestamp, issues}
+	app.safeCache.cache[key] = TimedCached{timestamp, issueItems}
 	app.safeCache.mu.Unlock()
-	return issues
+
+	return issueItems
 }
 
-func getIssueDetails(issue *gitlab.Issue) string {
+func getIssueDetails(issue ListItem) string {
 	result := ""
-	title := issue.Title
+	title := issue.Name()
 	result += "# " + title + "\n\n"
-	description := issue.Description
+	description := issue.Description()
 	result += description + "\n\n"
 	return result
 }

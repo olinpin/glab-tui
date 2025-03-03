@@ -11,7 +11,7 @@ import (
 )
 
 type SafeIssueViews struct {
-	issueViews map[*gitlab.Project]*tview.TextView
+	issueViews map[ListItem]Page
 	mu         sync.Mutex
 }
 
@@ -22,24 +22,18 @@ type SafeCache struct {
 
 type App struct {
 	tviewApp           *tview.Application
-	projectsView       *tview.Flex
-	projectsViewList   *tview.List
-	projects           []*gitlab.Project
-	projectIssues      map[*gitlab.Project][]*gitlab.Issue
+	projectIssues      map[ListItem][]ListItem
 	git                *gitlab.Client
-	projectsTextView   *tview.TextView
 	safeCache          SafeCache
 	pages              *tview.Pages
-	currentProject     *gitlab.Project
 	safeIssueViews     SafeIssueViews
-	projectSearchField *tview.InputField
-	searchCancel       context.CancelFunc
 	projectsPage       Page
 }
 
 type ListItem interface {
 	ID() int
 	Name() string
+	Description() string
 }
 
 type ProjectWrapper struct {
@@ -58,12 +52,20 @@ func (p ProjectWrapper) Name() string {
 	return p.project.Name
 }
 
+func (p ProjectWrapper) Description() string {
+	return p.project.Description
+}
+
 func (i IssueWrapper) ID() int {
 	return i.issue.ID
 }
 
 func (i IssueWrapper) Name() string {
 	return i.issue.Title
+}
+
+func (i IssueWrapper) Description() string {
+	return i.issue.Description
 }
 
 type TimedCached struct {
@@ -75,13 +77,10 @@ func createApp() *App {
 	a := App{}
 	a.git = getGitlab(os.Getenv("GITLAB_TOKEN"), "https://gitlab.utwente.nl")
 	a.safeCache = SafeCache{cache: map[string]TimedCached{}}
-	a.projectIssues = map[*gitlab.Project][]*gitlab.Issue{}
-	a.safeIssueViews = SafeIssueViews{issueViews: map[*gitlab.Project]*tview.TextView{}}
+	a.projectIssues = map[ListItem][]ListItem{}
+	a.safeIssueViews = SafeIssueViews{issueViews: map[ListItem]Page{}}
 	a.tviewApp = tview.NewApplication()
 	a.pages = tview.NewPages()
-	a.projects = []*gitlab.Project{}
-	a.projectsTextView = a.createPrimitive("")
-	a.projectSearchField = tview.NewInputField()
 	a.projectsPage = Page{
 		textView: a.createPrimitive("Issues"),
 	}
@@ -90,18 +89,10 @@ func createApp() *App {
 
 func (a *App) getProjectsAndIssuesRoutine() {
 	a.listProjects()
-	a.projectsPage.populateProjectsViewList(context.Background(), a.switchToPageFunc)
+	a.projectsPage.PopulateListView(context.Background(), a.switchToPageFunc)
 	for _, project := range a.projectsPage.listItems {
 		a.createIssuePage(project)
 	}
-}
-
-func issueViewInputCapture(event *tcell.EventKey) *tcell.EventKey {
-	k := event.Key()
-	if k == tcell.KeyEsc {
-		app.pages.SwitchToPage("projects")
-	}
-	return event
 }
 
 func viewInputCapture(event *tcell.EventKey) *tcell.EventKey {
@@ -113,13 +104,22 @@ func viewInputCapture(event *tcell.EventKey) *tcell.EventKey {
 }
 
 func (a *App) createIssuePage(project ListItem) {
-	// TODO: fix once you start fixing issue pages
-	// issues := listProjectIssues(project)
-	// a.projectIssues[project] = issues
-	// issueView, textView := createIssueView(issues)
-	// issueView.SetInputCapture(issueViewInputCapture)
-	// a.safeIssueViews.mu.Lock()
-	// a.safeIssueViews.issueViews[project] = textView
-	// a.safeIssueViews.mu.Unlock()
-	// a.pages.AddPage("issues"+project.Name, issueView, true, false)
+	issues := listProjectIssues(project)
+	a.projectIssues[project] = issues
+	page := Page{
+		textView: a.createPrimitive(""),
+	}
+	a.safeIssueViews.mu.Lock()
+	a.safeIssueViews.issueViews[project] = page
+	a.safeIssueViews.mu.Unlock()
+	page.listItems = issues
+	// TODO: fix where does the switchToPage lead
+	page.CreateSearchField(a.SetFocus, a.switchToPageFunc)
+	page.CreateListView(a, "Issues", handleIssueSelect)
+	page.CreatePageGrid()
+	if len(issues) > 0 {
+		issueText := getIssueDetails(issues[0])
+		page.textView.SetText(issueText)
+	}
+	a.pages.AddPage("issues"+project.Name(), page.gridView, true, false)
 }

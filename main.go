@@ -9,8 +9,6 @@ func main() {
 	app.createProjectsPage()
 	go app.getProjectsAndIssuesRoutine()
 
-	app.createProjectsPage()
-
 	if err := app.tviewApp.SetRoot(app.pages, true).SetFocus(app.pages).Run(); err != nil {
 		panic(err)
 		app.tviewApp.Stop()
