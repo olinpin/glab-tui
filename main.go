@@ -2,7 +2,8 @@ package main
 
 var app App
 
-// TODO: rewrite have a type/struct for the entire page and then generalize the search function and the grid function and all those functions to work with the entire page
+// TODO: create a config file where you can put the env variables stuff, instead of getting the environment variable directly
+//    - that way user can set the environment variables to whatever they want
 
 func main() {
 	app = *createApp()
