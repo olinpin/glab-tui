@@ -65,6 +65,7 @@ func (p *Page) CreateListView(a *App, listTitle string, handleSelect func(index 
 	p.listView = tview.NewList().
 		ShowSecondaryText(false)
 	p.listView.SetTitle(listTitle)
+	p.listView.SetSelectedFocusOnly(true)
 
 	p.PopulateListView(context.Background(), a.switchToPageFunc)
 	if len(p.listItems) > 0 {
