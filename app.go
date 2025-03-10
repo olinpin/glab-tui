@@ -75,7 +75,7 @@ type TimedCached struct {
 
 func createApp() *App {
 	a := App{}
-	a.git = getGitlab(os.Getenv("GITLAB_TOKEN"), "https://gitlab.utwente.nl")
+    a.git = getGitlab(os.Getenv("GITLAB_TOKEN"), os.Getenv("GITLAB_URL"))
 	a.safeCache = SafeCache{cache: map[string]TimedCached{}}
 	a.projectIssues = map[ListItem][]ListItem{}
 	a.safeIssueViews = SafeIssueViews{issueViews: map[ListItem]Page{}}
