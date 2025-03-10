@@ -16,13 +16,21 @@ func getGitlab(token string, url string) *gitlab.Client {
 	return git
 }
 
-func (a *App) listProjects() {
+func (a *App) getProjects(name string) []*gitlab.Project {
 	opt := &gitlab.ListProjectsOptions{}
+	if name != "" {
+		opt.Search = &name
+		opt.PerPage = 100
+	}
 	projects, _, err := a.git.Projects.ListProjects(opt)
 	if err != nil {
 		handleError(err)
 	}
+	return projects
+}
 
+func (a *App) listProjects(name string) {
+	projects := a.getProjects(name)
 	sort.Slice(projects, func(i, j int) bool {
 		return strings.ToLower(projects[i].Name) < strings.ToLower(projects[j].Name)
 	})

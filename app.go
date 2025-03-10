@@ -88,7 +88,7 @@ func createApp() *App {
 }
 
 func (a *App) getProjectsAndIssuesRoutine() {
-	a.listProjects()
+	a.listProjects("")
 	a.projectsPage.PopulateListView(context.Background(), a.switchToPageFunc)
 	for _, project := range a.projectsPage.listItems {
 		a.createIssuePage(project)

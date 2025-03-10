@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"sort"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/lithammer/fuzzysearch/fuzzy"
@@ -30,11 +31,37 @@ func (p *Page) InputFieldChangedFunc(text string) {
 	p.searchCancel = cancel
 
 	go func() {
-		// TODO: figure out if this can be abstracted so that we don't call the global app here
-		app.tviewApp.QueueUpdateDraw(func() {
-			p.PopulateListView(ctx, app.switchToPageFunc)
-		})
+		filteredItems := []ListItem{}
+		if text == "" {
+			filteredItems = p.listItems
+		} else {
+			filteredItems = p.searchItems(ctx)
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			app.tviewApp.QueueUpdateDraw(func() {
+				// TODO: figure out if this can be abstracted so that we don't call the global app here
+				p.updateListViewWithItems(ctx, filteredItems, app.switchToPageFunc)
+			})
+		}
 	}()
+}
+
+// TODO: pretty sure this fucked up the Issues pages, fix it
+func (p *Page) updateListViewWithItems(ctx context.Context, items []ListItem, listFn func(string) *tview.Pages) {
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		p.listView.Clear()
+		for _, item := range items {
+			var pageName string = "issues" + item.Name()
+			p.listView.AddItem(item.Name(), string(item.ID()), rune(0), func() { listFn(pageName) })
+		}
+	}
 }
 
 func (p *Page) CreateSearchField(SetFocus func(tview.Primitive), SwitchToPage func(string) *tview.Pages) {
@@ -75,16 +102,8 @@ func (page *Page) PopulateListView(ctx context.Context, listFn func(string) *tvi
 	} else {
 		items = page.searchItems(ctx)
 	}
-	select {
-	case <-ctx.Done():
-		return
-	default:
-		page.listView.Clear()
-		for _, item := range items {
-			var pageName string = "issues" + item.Name()
-			page.listView.AddItem(item.Name(), string(item.ID()), rune(0), func() { listFn(pageName) })
-		}
-	}
+
+	page.updateListViewWithItems(ctx, items, listFn)
 }
 
 func (p *Page) searchItems(ctx context.Context) []ListItem {
@@ -93,6 +112,22 @@ func (p *Page) searchItems(ctx context.Context) []ListItem {
 	}
 
 	searchString := p.searchField.GetText()
+
+	name, _ := app.pages.GetFrontPage()
+
+	// if name containst "issue" then we are on the issue page
+	if name[:5] == "issue" {
+	} else if name == "projects" {
+		projects := app.getProjects(searchString)
+		sort.Slice(projects, func(i, j int) bool {
+			return strings.ToLower(projects[i].Name) < strings.ToLower(projects[j].Name)
+		})
+		p.listItems = []ListItem{}
+		for _, project := range projects {
+			p.listItems = append(p.listItems, ProjectWrapper{project})
+		}
+		return p.listItems
+	}
 
 	itemNamesMap := make(map[string]ListItem, len(p.listItems))
 	itemNames := make([]string, 0, len(p.listItems))
